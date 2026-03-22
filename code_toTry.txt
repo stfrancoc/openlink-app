@@ -1,0 +1,88 @@
+using System.Collections;
+using UnityEngine;
+using UnityEngine.Networking;
+
+public class CameraControllerXR : MonoBehaviour
+{
+    [Header("Conexión")]
+    public string url = "http://127.0.0.1:8000/orientation/phone_1";
+
+    [Header("Suavizado")]
+    [Range(1f, 20f)]
+    public float smoothSpeed = 5f;
+
+    private Quaternion targetRotation = Quaternion.identity;
+    private Quaternion calibrationOffset = Quaternion.identity;
+
+    void Start()
+    {
+        StartCoroutine(GetOrientation());
+    }
+
+    IEnumerator GetOrientation()
+    {
+        while (true)
+        {
+            UnityWebRequest request = UnityWebRequest.Get(url);
+            yield return request.SendWebRequest();
+
+            if (request.result == UnityWebRequest.Result.Success)
+            {
+                string json = request.downloadHandler.text;
+
+                // 🔒 Evitar errores si llega vacío
+                if (!string.IsNullOrEmpty(json) && json != "{}")
+                {
+                    Orientation data = JsonUtility.FromJson<Orientation>(json);
+
+                    // 🎯 Ajuste de ejes (puede variar según tu caso)
+                    targetRotation = new Quaternion(
+                        -data.x,
+                         data.y,
+                         data.z,
+                        -data.w
+                    );
+                }
+            }
+            else
+            {
+                Debug.Log("Error: " + request.error);
+            }
+
+            // 🚀 Baja latencia (cada frame)
+            yield return null;
+        }
+    }
+
+    void Update()
+    {
+        // 🔥 CALIBRACIÓN (tecla ESPACIO)
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            calibrationOffset = Quaternion.Inverse(targetRotation);
+            Debug.Log("Calibrado!");
+        }
+
+        // 🎯 Aplicar calibración
+        Quaternion calibratedRotation = calibrationOffset * targetRotation;
+
+        // 🎮 Aplicar rotación suavizada
+        transform.rotation = Quaternion.Slerp(
+            transform.rotation,
+            calibratedRotation,
+            Time.deltaTime * smoothSpeed
+        );
+
+        // 🧪 Debug visual (dirección de la cámara)
+        Debug.DrawRay(transform.position, transform.forward * 2f);
+    }
+}
+
+[System.Serializable]
+public class Orientation
+{
+    public float x;
+    public float y;
+    public float z;
+    public float w;
+}
