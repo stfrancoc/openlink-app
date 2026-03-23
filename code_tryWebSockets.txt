@@ -121,3 +121,54 @@ public class Orientation
     public float z;
     public float w;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+LeftEye  → X = -0.03
+RightEye → X =  0.03
+
+
+
+
+
+
+
+
+
+// --------------------------------------------------------
+
+
+
+//CameraFollow.cs
+
+using UnityEngine;
+
+public class CameraFollow : MonoBehaviour
+{
+    public Transform target;
+
+    void Update()
+    {
+        transform.rotation = target.rotation;
+    }
+}
