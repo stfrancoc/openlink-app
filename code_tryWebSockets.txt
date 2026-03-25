@@ -172,3 +172,132 @@ public class CameraFollow : MonoBehaviour
         transform.rotation = target.rotation;
     }
 }
+
+
+
+//----------------------------------------------------------------------
+
+
+
+using UnityEngine;
+using NativeWebSocket;
+
+public class CameraControllerWS : MonoBehaviour
+{
+    [Header("Conexión")]
+    public string url = "ws://192.168.20.68:8765"; // ⚠️ CAMBIA POR TU IP
+
+    [Header("Suavizado")]
+    [Range(1f, 20f)]
+    public float smoothSpeed = 5f;
+
+    private WebSocket websocket;
+
+    private Quaternion targetRotation = Quaternion.identity;
+    private Quaternion calibrationOffset = Quaternion.identity;
+
+    private bool isConnected = false;
+
+    async void Start()
+    {
+        websocket = new WebSocket(url);
+
+        websocket.OnOpen += () =>
+        {
+            Debug.Log("WS conectado 🔥");
+            isConnected = true;
+        };
+
+        websocket.OnError += (e) =>
+        {
+            Debug.Log("WS error: " + e);
+        };
+
+        websocket.OnClose += (e) =>
+        {
+            Debug.Log("WS cerrado" + e);
+            isConnected = false;
+        };
+
+        websocket.OnMessage += (bytes) =>
+        {
+            string json = System.Text.Encoding.UTF8.GetString(bytes);
+            Debug.Log("WS DATA: " + json); // 🔥 DEBUG
+
+            WSMessage data = JsonUtility.FromJson<WSMessage>(json);
+
+            if (data != null && data.orientation != null)
+            {
+                var o = data.orientation;
+
+                targetRotation = new Quaternion(
+                    -o.x,
+                     o.y,
+                     o.z,
+                    -o.w
+                );
+            }
+        };
+
+        await websocket.Connect();
+    }
+
+    void Update()
+    {
+        // 🔒 Evitar NullReference
+        if (websocket != null)
+        {
+#if !UNITY_WEBGL || UNITY_EDITOR
+            websocket.DispatchMessageQueue();
+#endif
+        }
+        else
+        {
+            return;
+        }
+
+        // 🔒 Esperar conexión antes de usar datos
+        if (!isConnected) return;
+
+        // 🔥 CALIBRACIÓN
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            calibrationOffset = Quaternion.Inverse(targetRotation);
+            Debug.Log("Calibrado!");
+        }
+
+        Quaternion calibrated = calibrationOffset * targetRotation;
+
+        transform.rotation = Quaternion.Slerp(
+            transform.rotation,
+            calibrated,
+            Time.deltaTime * smoothSpeed
+        );
+
+        Debug.DrawRay(transform.position, transform.forward * 2f);
+    }
+
+    private async void OnApplicationQuit()
+    {
+        if (websocket != null)
+        {
+            await websocket.Close();
+        }
+    }
+}
+
+[System.Serializable]
+public class WSMessage
+{
+    public string deviceId;
+    public Orientation orientation;
+}
+
+[System.Serializable]
+public class Orientation
+{
+    public float x;
+    public float y;
+    public float z;
+    public float w;
+}
