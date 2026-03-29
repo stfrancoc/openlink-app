@@ -1,15 +1,21 @@
 import './global';
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TextInput, Button } from 'react-native';
+import { StyleSheet, Text, View, TextInput, Button, Dimensions } from 'react-native';
 import { Accelerometer, Gyroscope } from 'expo-sensors';
 import dgram from 'react-native-udp';
 import { Buffer } from 'buffer';
+import { Image } from 'react-native';
+import { WebView } from 'react-native-webview';
+
+const { width, height } = Dimensions.get('window');
 
 export default function App() {
-  // Estado para la IP y el estado de conexión
-  const [serverIp, setServerIp] = useState('192.168.0.4'); // IP por defecto
+  const [serverIp, setServerIp] = useState('192.168.0.4');
   const [isConnected, setIsConnected] = useState(false);
   const [socket, setSocket] = useState(null);
+
+  const [screen, setScreen] = useState('menu'); 
+  const [mode, setMode] = useState('flat'); // flat | vr
 
   const toggleConnection = () => {
     if (isConnected) {
@@ -18,95 +24,160 @@ export default function App() {
       setIsConnected(false);
     } else {
       const newSocket = dgram.createSocket('udp4');
-      newSocket.bind(0); // Puerto local aleatorio
+      newSocket.bind(0);
       setSocket(newSocket);
       setIsConnected(true);
     }
   };
 
+  // 🔥 ENVÍO DE SENSORES (igual que el tuyo)
   useEffect(() => {
-  let accelData = { x: 0, y: 0, z: 0 };
-  let gyroData = { x: 0, y: 0, z: 0 };
+    let accelData = { x: 0, y: 0, z: 0 };
+    let gyroData = { x: 0, y: 0, z: 0 };
 
-  let accelSub;
-  let gyroSub;
-  let interval;
+    let accelSub;
+    let gyroSub;
+    let interval;
 
-  if (isConnected && socket) {
-    Accelerometer.setUpdateInterval(10);
-    Gyroscope.setUpdateInterval(10);
+    if (isConnected && socket) {
+      Accelerometer.setUpdateInterval(10);
+      Gyroscope.setUpdateInterval(10);
 
-    accelSub = Accelerometer.addListener(data => {
-      accelData = data;
-    });
+      accelSub = Accelerometer.addListener(data => {
+        accelData = data;
+      });
 
-    gyroSub = Gyroscope.addListener(data => {
-      gyroData = data;
-    });
+      gyroSub = Gyroscope.addListener(data => {
+        gyroData = data;
+      });
 
-    interval = setInterval(() => {
-      const message = {
-        deviceId: "phone_1",
-        type: "imu",
-        data: {
-          acceleration: {
-            x: parseFloat(accelData.x.toFixed(3)),
-            y: parseFloat(accelData.y.toFixed(3)),
-            z: parseFloat(accelData.z.toFixed(3))
+      interval = setInterval(() => {
+        const message = {
+          deviceId: "phone_1",
+          type: "imu",
+          data: {
+            acceleration: {
+              x: parseFloat(accelData.x.toFixed(3)),
+              y: parseFloat(accelData.y.toFixed(3)),
+              z: parseFloat(accelData.z.toFixed(3))
+            },
+            gyroscope: {
+              x: parseFloat(gyroData.x.toFixed(3)),
+              y: parseFloat(gyroData.y.toFixed(3)),
+              z: parseFloat(gyroData.z.toFixed(3))
+            }
           },
-          gyroscope: {
-            x: parseFloat(gyroData.x.toFixed(3)),
-            y: parseFloat(gyroData.y.toFixed(3)),
-            z: parseFloat(gyroData.z.toFixed(3))
-          }
-        },
-        timestamp: Date.now()
-      };
+          timestamp: Date.now()
+        };
 
-      const buf = Buffer.from(JSON.stringify(message));
-      socket.send(buf, 0, buf.length, 5005, serverIp);
+        const buf = Buffer.from(JSON.stringify(message));
+        socket.send(buf, 0, buf.length, 5005, serverIp);
 
-    }, 16); // ~60Hz
+      }, 16);
+    }
+
+    return () => {
+      if (accelSub) accelSub.remove();
+      if (gyroSub) gyroSub.remove();
+      if (interval) clearInterval(interval);
+    };
+  }, [isConnected, socket, serverIp]);
+
+  // 🎮 PANTALLAS
+
+  if (screen === 'menu') {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>OpenLink XR</Text>
+
+        <Text>IP del servidor</Text>
+        <TextInput
+          style={styles.input}
+          value={serverIp}
+          onChangeText={setServerIp}
+        />
+
+        <Button
+          title={isConnected ? "Desconectar" : "Conectar"}
+          onPress={toggleConnection}
+        />
+
+        <View style={{ marginTop: 20 }}>
+          <Button title="Pantalla flotante" onPress={() => { setMode('flat'); setScreen('viewer'); }} />
+          <Button title="Modo VR" onPress={() => { setMode('vr'); setScreen('viewer'); }} />
+        </View>
+
+        <Text style={styles.status}>
+          {isConnected ? "Conectado" : "Desconectado"}
+        </Text>
+      </View>
+    );
   }
 
-  return () => {
-    if (accelSub) accelSub.remove();
-    if (gyroSub) gyroSub.remove();
-    if (interval) clearInterval(interval);
-    if (socket) socket.removeAllListeners();
-  };
-
-}, [isConnected, socket, serverIp]);
-
+  // 🥽 VIEWER
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>OpenLinkXR Terminal</Text>
-      
-      <Text>Configurar IP del Servidor:</Text>
-      <TextInput
-        style={styles.input}
-        onChangeText={setServerIp}
-        value={serverIp}
-        placeholder="Ej: 192.168.0.4"
-        keyboardType="numeric"
-      />
+    <View style={styles.viewerContainer}>
+      {mode === 'flat' ? (
+        <View style={styles.flatContainer}>
+          <Text style={styles.overlay}>Pantalla flotante</Text>
+          <ImageStream serverIp={serverIp} />
+        </View>
+      ) : (
+        <View style={styles.vrContainer}>
+          <ImageStream serverIp={serverIp} style={{ width: width / 2 }} />
+          <ImageStream serverIp={serverIp} style={{ width: width / 2 }} />
+        </View>
+      )}
 
-      <Button 
-        title={isConnected ? "Detener Streaming" : "Iniciar Streaming"} 
-        color={isConnected ? "#ff5c5c" : "#4CAF50"}
-        onPress={toggleConnection} 
-      />
-
-      <Text style={styles.status}>
-        Estado: {isConnected ? `Transmitiendo a ${serverIp}` : "Desconectado"}
-      </Text>
+      <View style={styles.exitBtn}>
+        <Button title="Salir" onPress={() => setScreen('menu')} />
+      </View>
     </View>
   );
 }
 
+
+// 🔥 COMPONENTE DE VIDEO
+const ImageStream = ({ serverIp, style }) => {
+  return (
+    <WebView
+      source={{ uri: `http://${serverIp}:8000/video` }}
+      style={[{ flex: 1, backgroundColor: 'black' }, style]}
+      javaScriptEnabled
+      domStorageEnabled
+      allowsInlineMediaPlayback
+    />
+  );
+};
+
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: '#fff' },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
-  input: { height: 40, borderColor: 'gray', borderWidth: 1, marginBottom: 20, paddingHorizontal: 10, borderRadius: 5 },
-  status: { marginTop: 20, textAlign: 'center', fontWeight: 'bold' }
+  container: { flex: 1, justifyContent: 'center', padding: 20 },
+  title: { fontSize: 28, textAlign: 'center', marginBottom: 20 },
+  input: { borderWidth: 1, padding: 10, marginBottom: 10 },
+
+  viewerContainer: { flex: 1, backgroundColor: 'black' },
+
+  flatContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+
+  vrContainer: {
+    flex: 1,
+    flexDirection: 'row'
+  },
+
+  overlay: {
+    position: 'absolute',
+    top: 40,
+    color: 'white',
+    zIndex: 10
+  },
+
+  exitBtn: {
+    position: 'absolute',
+    bottom: 40,
+    alignSelf: 'center'
+  }
 });
