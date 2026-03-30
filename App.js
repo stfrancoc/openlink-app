@@ -10,11 +10,10 @@ export default function App() {
   const [serverIp, setServerIp] = useState('192.168.0.4');
   const [isConnected, setIsConnected] = useState(false);
   const [socket, setSocket] = useState(null);
-
+  const [ipdOffset, setIpdOffset] = useState(0);
   const [screen, setScreen] = useState('menu');
   const [mode, setMode] = useState('flat');
 
-  // 🔌 Conexión UDP
   const toggleConnection = () => {
     if (isConnected) {
       socket.close();
@@ -28,7 +27,6 @@ export default function App() {
     }
   };
 
-  // 📡 Sensores
   useEffect(() => {
     let stopSensors;
 
@@ -41,7 +39,6 @@ export default function App() {
     };
   }, [isConnected, socket, serverIp]);
 
-  // 🧭 Navegación simple
   if (screen === 'menu') {
     return (
       <MenuScreen
@@ -49,6 +46,8 @@ export default function App() {
         setServerIp={setServerIp}
         isConnected={isConnected}
         toggleConnection={toggleConnection}
+        ipdOffset={ipdOffset}
+        setIpdOffset={setIpdOffset}
         onSelectMode={(selectedMode) => {
           setMode(selectedMode);
           setScreen('viewer');
@@ -61,6 +60,7 @@ export default function App() {
     <ViewerScreen
       mode={mode}
       serverIp={serverIp}
+      ipdOffset={ipdOffset} 
       onExit={() => setScreen('menu')}
     />
   );

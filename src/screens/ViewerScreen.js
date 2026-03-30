@@ -1,103 +1,114 @@
-import React, { useEffect, useState } from 'react';
-import { View, Button, Text, Dimensions, StatusBar, StyleSheet } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Button, Text, StatusBar, StyleSheet, Dimensions } from 'react-native';
 import ImageStream from '../components/ImageStream';
 import { Gyroscope, Accelerometer } from 'expo-sensors';
 import * as ScreenOrientation from 'expo-screen-orientation';
 
-export default function ViewerScreen({ mode, serverIp, onExit }) {
-  const [rotation, setRotation] = useState({ x: 0, y: 0 });
-  const [zDistance, setZDistance] = useState(1); // Escala/Distancia (1 = 100%)
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+export default function ViewerScreen({ mode, serverIp, onExit, ipdOffset }) {
+  const rawRotation = useRef({ x: 0, y: 0 });
+  const [smoothRotation, setSmoothRotation] = useState({ x: 0, y: 0 });
+  const [zDistance, setZDistance] = useState(1); 
 
   const resetView = () => {
-    setRotation({ x: 0, y: 0 });
+    rawRotation.current = { x: 0, y: 0 };
+    setSmoothRotation({ x: 0, y: 0 });
     setZDistance(1);
   };
 
   useEffect(() => {
     StatusBar.setHidden(true);
     ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-
     Gyroscope.setUpdateInterval(16);
     Accelerometer.setUpdateInterval(16);
 
     const gyroSub = Gyroscope.addListener(data => {
-      setRotation(prev => {
-        // CORRECCIÓN DE EJES PARA LANDSCAPE:
-        // En modo horizontal:
-        // El giro "arriba/abajo" del usuario suele ser data.x
-        // El giro "izquierda/derecha" suele ser data.y o data.z dependiendo del dispositivo
-        
-        const sens = 3.5; 
-
-        return {
-          // Ajustamos los signos y mapeamos los ejes según tu descripción:
-          // Si giras arriba y se va a la izquierda, invertimos y cambiamos el eje:
-          x: Math.max(-100, Math.min(100, prev.x - data.y * sens)), 
-          y: prev.y + data.x * sens 
-        };
-      });
+      const sens = 3.5;
+      rawRotation.current = {
+        x: Math.max(-100, Math.min(100, rawRotation.current.x - data.y * sens)),
+        y: rawRotation.current.y + data.x * sens
+      };
     });
 
-    // --- EXPERIMENTAL: ACERCARSE/ALEJARSE CON ACELERÓMETRO ---
     const accelSub = Accelerometer.addListener(data => {
-      // Si el sensor detecta un empuje fuerte hacia adelante (z)
-      // Ajustamos la escala para simular profundidad
       if (Math.abs(data.z) > 1.2) {
         setZDistance(prev => {
           const next = prev + (data.z * 0.01);
-          return Math.max(0.5, Math.min(1.5, next)); // Límites de zoom
+          return Math.max(0.5, Math.min(1.5, next));
         });
       }
     });
 
+    const animationFrame = setInterval(() => {
+      setSmoothRotation(prev => ({
+        x: prev.x + (rawRotation.current.x - prev.x) * 0.15,
+        y: prev.y + (rawRotation.current.y - prev.y) * 0.15
+      }));
+    }, 16);
+
     return () => {
       gyroSub.remove();
       accelSub.remove();
+      clearInterval(animationFrame);
       StatusBar.setHidden(false);
       ScreenOrientation.unlockAsync();
     };
   }, []);
 
-  const renderEye = () => (
-    <View style={styles.eyeContainer}>
+  const renderEye = (isRightEye) => (
+    <View style={[
+      styles.eyeContainer, 
+      { 
+        transform: [{ translateX: isRightEye ? ipdOffset : -ipdOffset }] 
+      }
+    ]}>
+      {/* ESPACIO VIRTUAL*/}
       <View style={[
         styles.virtualSpace,
         {
           transform: [
-            { scale: zDistance }, // Efecto de alejamiento/acercamiento
-            { translateX: rotation.y * 10 }, 
-            { translateY: rotation.x * 10 }
+            { scale: zDistance },
+            { translateX: smoothRotation.y * 10 },
+            { translateY: smoothRotation.x * 10 }
           ]
         }
       ]}>
-        {/* PANTALLA MÁS LEJANA: Bajamos el tamaño base para dar sensación de distancia */}
         <View style={styles.streamWindow}>
           <ImageStream serverIp={serverIp} />
         </View>
       </View>
+      {/* La retícula se mueve con el ojo para mantener la referencia central */}
       <View style={styles.reticle} />
     </View>
   );
 
+  // --- MODO PANTALLA FLOTANTE 
   if (mode === 'flat') {
     return (
-      <View style={styles.mainContainer}>
-        <View style={styles.flatStreamWrapper}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'black' }}>
+        <Text style={{ color: 'white', position: 'absolute', top: 40 }}>
+          Pantalla flotante
+        </Text>
+
+        <View style={{ width: '90%', height: '60%', overflow: 'hidden' }}>
           <ImageStream serverIp={serverIp} />
         </View>
-        <View style={styles.controlsOverlay}>
+
+        <View style={{ position: 'absolute', bottom: 40 }}>
           <Button title="Salir" onPress={onExit} color="#ff5c5c" />
         </View>
       </View>
     );
   }
 
+  // --- MODO VR ---
   return (
     <View style={styles.mainContainer}>
       <View style={styles.vrLayout}>
-        {renderEye()}
+        {renderEye(false)}
         <View style={styles.divider} />
-        {renderEye()}
+        {renderEye(true)}
       </View>
 
       <View style={styles.controlsOverlay}>
@@ -109,24 +120,46 @@ export default function ViewerScreen({ mode, serverIp, onExit }) {
 }
 
 const styles = StyleSheet.create({
-  mainContainer: { flex: 1, backgroundColor: 'black', justifyContent: 'center', alignItems: 'center' },
+  mainContainer: { flex: 1, backgroundColor: 'black' },
   vrLayout: { flex: 1, flexDirection: 'row' },
-  eyeContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
-  virtualSpace: { width: 2000, height: 2000, justifyContent: 'center', alignItems: 'center' },
+  eyeContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    overflow: 'hidden',
+    backgroundColor: 'black' 
+  },
+  virtualSpace: { 
+    width: 2000, 
+    height: 2000, 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
   streamWindow: {
-    width: 700,  // Reducido de 900 a 700 para que se vea más lejos por defecto
-    height: 393, // Mantiene relación 16:9
+    width: 750,
+    height: 422,
     backgroundColor: '#050505',
-    elevation: 20,
+    elevation: 25,
   },
-  reticle: {
-    position: 'absolute',
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  reticle: { 
+    position: 'absolute', 
+    width: 6, 
+    height: 6, 
+    borderRadius: 3, 
+    backgroundColor: 'rgba(255, 255, 255, 0.3)' 
   },
-  divider: { width: 2, height: '100%', backgroundColor: '#0a0a0a' },
-  flatStreamWrapper: { width: '90%', height: '80%', borderRadius: 10, overflow: 'hidden' },
-  controlsOverlay: { position: 'absolute', bottom: 30, flexDirection: 'row', gap: 20, zIndex: 10 }
+  controlsOverlay: { 
+    position: 'absolute', 
+    bottom: 30, 
+    alignSelf: 'center', 
+    flexDirection: 'row', 
+    gap: 15, 
+    zIndex: 999 
+  },
+  divider: { 
+    width: 2, 
+    height: '100%', 
+    backgroundColor: '#111',
+    zIndex: 10 
+  }
 });
