@@ -58,14 +58,13 @@ export default function ViewerScreen({ mode, serverIp, onExit }) {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: 'black' }}>
 
-      <View style={{ flex: 1, flexDirection: 'row' }}>
+      <View style={{ flex: 1, flexDirection: 'row' , backgroundColor: 'black'}}>
         {[0, 1].map((_, i) => (
           <View
             key={i}
             style={{
-              width: width / 2,
+              width: width,
               height: '100%',
               overflow: 'hidden'
             }}
@@ -75,8 +74,8 @@ export default function ViewerScreen({ mode, serverIp, onExit }) {
                 width: '100%',   
                 height: '100%',
                 transform: [
-                  { translateX: rotation.x },
-                  { translateY: rotation.y }
+                  { translateX: rotation.y },
+                  { translateY: rotation.x }
                 ]
               }}
             >
@@ -84,20 +83,19 @@ export default function ViewerScreen({ mode, serverIp, onExit }) {
             </View>
           </View>
         ))}
+
+        {/* CONTROLES */}
+        <View style={{
+          position: 'absolute',
+          bottom: 30,
+          alignSelf: 'center',
+          flexDirection: 'row',
+          gap: 10
+        }}>
+          <Button title="Recentrar" onPress={resetView} />
+          <Button title="Salir" onPress={onExit} />
+        </View>
       </View>
 
-      {/* CONTROLES */}
-      <View style={{
-        position: 'absolute',
-        bottom: 30,
-        alignSelf: 'center',
-        flexDirection: 'row',
-        gap: 10
-      }}>
-        <Button title="Recentrar" onPress={resetView} />
-        <Button title="Salir" onPress={onExit} />
-      </View>
-
-    </View>
   );
 }
