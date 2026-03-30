@@ -13,6 +13,7 @@ export default function App() {
   const [ipdOffset, setIpdOffset] = useState(0);
   const [screen, setScreen] = useState('menu');
   const [mode, setMode] = useState('flat');
+  const [initialScale, setInitialScale] = useState(0.8);
 
   const toggleConnection = () => {
     if (isConnected) {
@@ -45,6 +46,8 @@ export default function App() {
         serverIp={serverIp}
         setServerIp={setServerIp}
         isConnected={isConnected}
+        initialScale={initialScale}
+        setInitialScale={setInitialScale}
         toggleConnection={toggleConnection}
         ipdOffset={ipdOffset}
         setIpdOffset={setIpdOffset}
@@ -61,6 +64,7 @@ export default function App() {
       mode={mode}
       serverIp={serverIp}
       ipdOffset={ipdOffset} 
+      initialScale={initialScale}
       onExit={() => setScreen('menu')}
     />
   );

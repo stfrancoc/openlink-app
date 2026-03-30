@@ -9,7 +9,9 @@ export default function MenuScreen({
   toggleConnection,
   onSelectMode,
   ipdOffset,      
-  setIpdOffset    
+  setIpdOffset,
+  initialScale,     
+  setInitialScale    
 }) {
   return (
     <View style={styles.container}>
@@ -34,6 +36,14 @@ export default function MenuScreen({
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 20, marginBottom: 10 }}>
           <Button title="  -  " onPress={() => setIpdOffset(prev => prev - 2)} color="#444" />
           <Button title="  +  " onPress={() => setIpdOffset(prev => prev + 2)} color="#444" />
+        </View>
+      </View>
+
+      <View style={{ marginTop: 20 }}>
+        <Text style={styles.label}>Distancia Pantalla (Escala): {Math.round(initialScale * 100)}%</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 20 }}>
+          <Button title=" Alejar " onPress={() => setInitialScale(prev => Math.max(0.3, prev - 0.05))} color="#444" />
+          <Button title=" Acercar " onPress={() => setInitialScale(prev => Math.min(1.5, prev + 0.05))} color="#444" />
         </View>
       </View>
 

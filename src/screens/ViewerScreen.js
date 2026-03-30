@@ -6,15 +6,15 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-export default function ViewerScreen({ mode, serverIp, onExit, ipdOffset }) {
+export default function ViewerScreen({ mode, serverIp, onExit, ipdOffset, initialScale }) {
   const rawRotation = useRef({ x: 0, y: 0 });
   const [smoothRotation, setSmoothRotation] = useState({ x: 0, y: 0 });
-  const [zDistance, setZDistance] = useState(1); 
+  const [zDistance, setZDistance] = useState(initialScale);
 
   const resetView = () => {
     rawRotation.current = { x: 0, y: 0 };
     setSmoothRotation({ x: 0, y: 0 });
-    setZDistance(1);
+    setZDistance(initialScale);
   };
 
   useEffect(() => {
