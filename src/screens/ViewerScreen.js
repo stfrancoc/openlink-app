@@ -3,15 +3,12 @@ import {
   View,
   Button,
   StatusBar,
-  StyleSheet,
-  Dimensions
+  StyleSheet
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import ImageStream from '../components/ImageStream';
 import { Gyroscope, Accelerometer } from 'expo-sensors';
 import * as ScreenOrientation from 'expo-screen-orientation';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function ViewerScreen({
   mode,
@@ -22,11 +19,29 @@ export default function ViewerScreen({
 }) {
 
   // ==============================
-  // 🔹 VR STATE
+  // TRACKING
   // ==============================
   const rawRotation = useRef({ x: 0, y: 0 });
   const [smoothRotation, setSmoothRotation] = useState({ x: 0, y: 0 });
   const [zDistance, setZDistance] = useState(initialScale);
+
+  // ==============================
+  // MULTI WINDOWS (FLAT)
+  // ==============================
+  const [windows, setWindows] = useState([
+    { id: 1, x: 0, y: 0, scale: 1 },
+    { id: 2, x: 300, y: -100, scale: 0.8 }
+  ]);
+
+  const moveWindow = (id, dx, dy) => {
+    setWindows(prev =>
+      prev.map(w =>
+        w.id === id
+          ? { ...w, x: w.x + dx, y: w.y + dy }
+          : w
+      )
+    );
+  };
 
   const resetView = () => {
     rawRotation.current = { x: 0, y: 0 };
@@ -35,7 +50,7 @@ export default function ViewerScreen({
   };
 
   // ==============================
-  // 🔹 SENSORES
+  // SENSORES
   // ==============================
   useEffect(() => {
     StatusBar.setHidden(true);
@@ -62,7 +77,7 @@ export default function ViewerScreen({
       }
     });
 
-    const animationFrame = setInterval(() => {
+    const loop = setInterval(() => {
       setSmoothRotation(prev => ({
         x: prev.x + (rawRotation.current.x - prev.x) * 0.15,
         y: prev.y + (rawRotation.current.y - prev.y) * 0.15
@@ -72,16 +87,21 @@ export default function ViewerScreen({
     return () => {
       gyroSub.remove();
       accelSub.remove();
-      clearInterval(animationFrame);
+      clearInterval(loop);
       StatusBar.setHidden(false);
       ScreenOrientation.unlockAsync();
     };
   }, []);
 
   // ==============================
-  // 🔹 RENDER OJO (VR)
+  // TREAM COMPARTIDO (CLAVE)
   // ==============================
-  const renderEye = (isRightEye) => (
+  const sharedStream = <ImageStream serverIp={serverIp} />;
+
+  // ==============================
+  // VR MODE (SIN LAG)
+  // ==============================
+  const renderVREye = (isRightEye) => (
     <View
       style={[
         styles.eyeContainer,
@@ -104,76 +124,87 @@ export default function ViewerScreen({
           }
         ]}
       >
-        {/* 🔥 GRID (SUELO) */}
-        <View style={styles.gridFloor} />
-
-        {/* 🔥 PANTALLA */}
         <View style={styles.streamWindow}>
-          <ImageStream serverIp={serverIp} />
+          {sharedStream}
         </View>
       </View>
 
-      {/* RETÍCULA */}
       <View style={styles.reticle} />
     </View>
   );
 
   // ==============================
-  // 🔹 MODO FLAT (VR-like)
+  // FLAT MODE (MULTI)
   // ==============================
-  if (mode === 'flat') {
-    return (
-      <LinearGradient
-        colors={['#020202', '#0a0a1a', '#000000']}
-        style={{ flex: 1 }}
+  const renderFlatEye = (isRightEye) => (
+    <View
+      style={[
+        styles.eyeContainer,
+        {
+          transform: [
+            { translateX: isRightEye ? ipdOffset : -ipdOffset }
+          ]
+        }
+      ]}
+    >
+      <View
+        style={[
+          styles.virtualSpace,
+          {
+            transform: [
+              { scale: zDistance },
+              { translateX: smoothRotation.y * 10 },
+              { translateY: smoothRotation.x * 10 }
+            ]
+          }
+        ]}
       >
-        <View style={styles.eyeContainer}>
-
+        {windows.map(win => (
           <View
+            key={win.id}
             style={[
-              styles.virtualSpace,
+              styles.streamWindow,
               {
                 transform: [
-                  { scale: zDistance },
-                  { translateX: smoothRotation.y * 8 },
-                  { translateY: smoothRotation.x * 8 - 50 }
+                  { translateX: win.x },
+                  { translateY: win.y },
+                  { scale: win.scale }
                 ]
               }
             ]}
           >
-            <View style={styles.gridFloor} />
-
-            <View style={styles.streamWindow}>
-              <ImageStream serverIp={serverIp} />
-            </View>
+            {sharedStream}
           </View>
+        ))}
+      </View>
 
-          <View style={styles.reticle} />
-        </View>
+      <View style={styles.reticle} />
+    </View>
+  );
 
-        <View style={styles.controlsOverlay}>
-          <Button title="Recentrar" onPress={resetView} color="#444" />
-          <Button title="Salir" onPress={onExit} color="#ff5c5c" />
-        </View>
-      </LinearGradient>
-    );
-  }
+  const isVR = mode === 'vr';
 
-  // ==============================
-  // 🔹 MODO VR
-  // ==============================
   return (
     <LinearGradient
       colors={['#020202', '#0a0a1a', '#000000']}
       style={{ flex: 1 }}
     >
       <View style={styles.vrLayout}>
-        {renderEye(false)}
+        {isVR ? renderVREye(false) : renderFlatEye(false)}
         <View style={styles.divider} />
-        {renderEye(true)}
+        {isVR ? renderVREye(true) : renderFlatEye(true)}
       </View>
 
-      <View style={styles.controlsOverlay}>
+      {!isVR && (
+        <View style={styles.controlsOverlay}>
+          <Button title="←" onPress={() => moveWindow(1, -50, 0)} />
+          <Button title="→" onPress={() => moveWindow(1, 50, 0)} />
+          <Button title="↑" onPress={() => moveWindow(1, 0, -50)} />
+          <Button title="↓" onPress={() => moveWindow(1, 0, 50)} />
+        </View>
+      )}
+
+      <View style={styles.controlsOverlayBottom}>
         <Button title="Recentrar" onPress={resetView} color="#444" />
         <Button title="Salir" onPress={onExit} color="#ff5c5c" />
       </View>
@@ -182,7 +213,7 @@ export default function ViewerScreen({
 }
 
 // ==============================
-// 🎨 ESTILOS
+//ESTILOS
 // ==============================
 const styles = StyleSheet.create({
   eyeContainer: {
@@ -204,31 +235,12 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
 
-  // 🔥 GRID SUELO
-  gridFloor: {
-    position: 'absolute',
-    width: 2000,
-    height: 2000,
-    backgroundColor: '#050505',
-    borderWidth: 1,
-    borderColor: '#111',
-    transform: [
-      { rotateX: '75deg' },
-      { translateY: 600 }
-    ]
-  },
-
-  // 🔥 PANTALLA CON GLOW
   streamWindow: {
+    position: 'absolute',
     width: 750,
     height: 422,
     backgroundColor: '#050505',
-    elevation: 25,
-
-    shadowColor: '#00aaff',
-    shadowOpacity: 0.3,
-    shadowRadius: 30,
-    shadowOffset: { width: 0, height: 0 }
+    elevation: 25
   },
 
   reticle: {
@@ -247,10 +259,17 @@ const styles = StyleSheet.create({
 
   controlsOverlay: {
     position: 'absolute',
-    bottom: 30,
+    bottom: 80,
     alignSelf: 'center',
     flexDirection: 'row',
-    gap: 15,
-    zIndex: 999
+    gap: 10
+  },
+
+  controlsOverlayBottom: {
+    position: 'absolute',
+    bottom: 20,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    gap: 15
   }
 });

@@ -12,6 +12,8 @@ export default function ImageStream({ serverIp, style }) {
       scrollEnabled={false}
       showsHorizontalScrollIndicator={false}
       showsVerticalScrollIndicator={false}
+      androidLayerType="hardware"   
+      overScrollMode="never"       
     />
   );
 }
