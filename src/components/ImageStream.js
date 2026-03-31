@@ -8,6 +8,10 @@ export default function ImageStream({ serverIp, style }) {
       style={[{ flex: 1, backgroundColor: 'black' }, style]}
       javaScriptEnabled
       domStorageEnabled
+
+      scrollEnabled={false}
+      showsHorizontalScrollIndicator={false}
+      showsVerticalScrollIndicator={false}
     />
   );
 }
