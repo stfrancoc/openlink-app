@@ -2,12 +2,11 @@ import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Button,
-  Text,
   StatusBar,
   StyleSheet,
-  Dimensions,
-  PanResponder
+  Dimensions
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import ImageStream from '../components/ImageStream';
 import { Gyroscope, Accelerometer } from 'expo-sensors';
 import * as ScreenOrientation from 'expo-screen-orientation';
@@ -29,28 +28,14 @@ export default function ViewerScreen({
   const [smoothRotation, setSmoothRotation] = useState({ x: 0, y: 0 });
   const [zDistance, setZDistance] = useState(initialScale);
 
-  // ==============================
-  // 🔹 FLAT STATE
-  // ==============================
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [scale, setScale] = useState(initialScale);
-  const lastScale = useRef(initialScale);
-
-  // ==============================
-  // 🔹 RESET GLOBAL
-  // ==============================
   const resetView = () => {
     rawRotation.current = { x: 0, y: 0 };
     setSmoothRotation({ x: 0, y: 0 });
     setZDistance(initialScale);
-
-    setPosition({ x: 0, y: 0 });
-    setScale(initialScale);
-    lastScale.current = initialScale;
   };
 
   // ==============================
-  // 🔹 SENSORES (VR)
+  // 🔹 SENSORES
   // ==============================
   useEffect(() => {
     StatusBar.setHidden(true);
@@ -94,52 +79,6 @@ export default function ViewerScreen({
   }, []);
 
   // ==============================
-  // 🔹 PAN + ZOOM (FLAT)
-  // ==============================
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-
-      onPanResponderMove: (evt, gestureState) => {
-
-        // 🔹 PAN (1 dedo)
-        if (evt.nativeEvent.touches.length === 1) {
-          setPosition({
-            x: gestureState.dx,
-            y: gestureState.dy
-          });
-        }
-
-        // 🔹 ZOOM (2 dedos)
-        if (evt.nativeEvent.touches.length === 2) {
-          const touches = evt.nativeEvent.touches;
-
-          const dx = touches[0].pageX - touches[1].pageX;
-          const dy = touches[0].pageY - touches[1].pageY;
-
-          const distance = Math.sqrt(dx * dx + dy * dy);
-
-          if (!lastScale.currentDistance) {
-            lastScale.currentDistance = distance;
-          }
-
-          const diff = distance - lastScale.currentDistance;
-
-          let newScale = lastScale.current + diff * 0.002;
-          newScale = Math.max(0.5, Math.min(2, newScale));
-
-          setScale(newScale);
-        }
-      },
-
-      onPanResponderRelease: () => {
-        lastScale.current = scale;
-        lastScale.currentDistance = null;
-      }
-    })
-  ).current;
-
-  // ==============================
   // 🔹 RENDER OJO (VR)
   // ==============================
   const renderEye = (isRightEye) => (
@@ -165,25 +104,31 @@ export default function ViewerScreen({
           }
         ]}
       >
+        {/* 🔥 GRID (SUELO) */}
+        <View style={styles.gridFloor} />
+
+        {/* 🔥 PANTALLA */}
         <View style={styles.streamWindow}>
           <ImageStream serverIp={serverIp} />
         </View>
       </View>
 
+      {/* RETÍCULA */}
       <View style={styles.reticle} />
     </View>
   );
 
   // ==============================
-  // 🔹 MODO FLAT (INTERACTIVO)
+  // 🔹 MODO FLAT (VR-like)
   // ==============================
   if (mode === 'flat') {
     return (
-      <View style={styles.mainContainer}>
-
+      <LinearGradient
+        colors={['#020202', '#0a0a1a', '#000000']}
+        style={{ flex: 1 }}
+      >
         <View style={styles.eyeContainer}>
 
-          {/* ESPACIO VIRTUAL IGUAL QUE VR */}
           <View
             style={[
               styles.virtualSpace,
@@ -191,28 +136,26 @@ export default function ViewerScreen({
                 transform: [
                   { scale: zDistance },
                   { translateX: smoothRotation.y * 8 },
-                  { translateY: smoothRotation.x * 8 }
+                  { translateY: smoothRotation.x * 8 - 50 }
                 ]
               }
             ]}
           >
+            <View style={styles.gridFloor} />
+
             <View style={styles.streamWindow}>
               <ImageStream serverIp={serverIp} />
             </View>
           </View>
 
-          {/* RETÍCULA */}
           <View style={styles.reticle} />
-
         </View>
 
-        {/* CONTROLES */}
         <View style={styles.controlsOverlay}>
           <Button title="Recentrar" onPress={resetView} color="#444" />
           <Button title="Salir" onPress={onExit} color="#ff5c5c" />
         </View>
-
-      </View>
+      </LinearGradient>
     );
   }
 
@@ -220,7 +163,10 @@ export default function ViewerScreen({
   // 🔹 MODO VR
   // ==============================
   return (
-    <View style={styles.mainContainer}>
+    <LinearGradient
+      colors={['#020202', '#0a0a1a', '#000000']}
+      style={{ flex: 1 }}
+    >
       <View style={styles.vrLayout}>
         {renderEye(false)}
         <View style={styles.divider} />
@@ -231,7 +177,7 @@ export default function ViewerScreen({
         <Button title="Recentrar" onPress={resetView} color="#444" />
         <Button title="Salir" onPress={onExit} color="#ff5c5c" />
       </View>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -239,22 +185,16 @@ export default function ViewerScreen({
 // 🎨 ESTILOS
 // ==============================
 const styles = StyleSheet.create({
-  mainContainer: {
+  eyeContainer: {
     flex: 1,
-    backgroundColor: 'black'
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden'
   },
 
   vrLayout: {
     flex: 1,
     flexDirection: 'row'
-  },
-
-  eyeContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-    backgroundColor: 'black'
   },
 
   virtualSpace: {
@@ -264,11 +204,31 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
 
+  // 🔥 GRID SUELO
+  gridFloor: {
+    position: 'absolute',
+    width: 2000,
+    height: 2000,
+    backgroundColor: '#050505',
+    borderWidth: 1,
+    borderColor: '#111',
+    transform: [
+      { rotateX: '75deg' },
+      { translateY: 600 }
+    ]
+  },
+
+  // 🔥 PANTALLA CON GLOW
   streamWindow: {
     width: 750,
     height: 422,
     backgroundColor: '#050505',
-    elevation: 25
+    elevation: 25,
+
+    shadowColor: '#00aaff',
+    shadowOpacity: 0.3,
+    shadowRadius: 30,
+    shadowOffset: { width: 0, height: 0 }
   },
 
   reticle: {
@@ -292,35 +252,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 15,
     zIndex: 999
-  },
-
-  // 🔹 FLAT MODE
-  flatContainer: {
-    flex: 1,
-    backgroundColor: 'black'
-  },
-
-  flatTitle: {
-    color: 'white',
-    position: 'absolute',
-    top: 40,
-    alignSelf: 'center'
-  },
-
-  flatInteractiveArea: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-
-  flatWindow: {
-    width: 800,
-    height: 450,
-    backgroundColor: '#050505',
-    elevation: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20
   }
 });
