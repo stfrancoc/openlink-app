@@ -1,7 +1,7 @@
 import './global';
 import React, { useState, useEffect } from 'react';
 import dgram from 'react-native-udp';
-
+import ControllerScreen from './src/screens/ControllerScreen';
 import MenuScreen from './src/screens/MenuScreen';
 import ViewerScreen from './src/screens/ViewerScreen';
 import { startSensorStream } from './src/services/SensorService';
@@ -55,6 +55,15 @@ export default function App() {
           setMode(selectedMode);
           setScreen('viewer');
         }}
+      />
+    );
+  }
+
+  if (mode === 'controller') {
+    return (
+      <ControllerScreen
+        serverIp={serverIp}
+        onExit={() => setScreen('menu')}
       />
     );
   }

@@ -1,22 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
-import {
-  View,
-  Button,
-  StatusBar,
-  StyleSheet
-} from 'react-native';
+import {View,Button,StatusBar,StyleSheet} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import ImageStream from '../components/ImageStream';
 import { Gyroscope, Accelerometer } from 'expo-sensors';
 import * as ScreenOrientation from 'expo-screen-orientation';
-
-export default function ViewerScreen({
-  mode,
-  serverIp,
-  onExit,
-  ipdOffset,
-  initialScale
-}) {
+import dgram from 'react-native-udp';
+export default function ViewerScreen({mode,serverIp,onExit,ipdOffset,initialScale}) {
 
   // ==============================
   // TRACKING
@@ -92,6 +81,57 @@ export default function ViewerScreen({
       ScreenOrientation.unlockAsync();
     };
   }, []);
+
+
+// ==============================
+// UDP CONTROL (CORREGIDO)
+// ==============================
+useEffect(() => {
+  const socket = dgram.createSocket('udp4');
+
+  socket.bind(0);
+
+  socket.on('listening', () => {
+    console.log("Viewer conectado al UDP");
+
+    const msg = JSON.stringify({ type: "register" });
+
+    socket.send(msg, 0, msg.length, 5005, serverIp);
+  });
+
+  socket.on('message', (msg) => {
+    try {
+      const data = JSON.parse(msg.toString());
+
+      if (data.type === "control") {
+
+        if (data.command === "move") {
+          moveWindow(1, data.payload.x, data.payload.y);
+        }
+
+        if (data.command === "scale") {
+          setWindows(prev =>
+            prev.map(w =>
+              w.id === 1
+                ? { ...w, scale: w.scale + data.payload.value }
+                : w
+            )
+          );
+        }
+
+        if (data.command === "next") {
+          console.log("NEXT WINDOW (demo)");
+        }
+      }
+
+    } catch (e) {
+      console.log("UDP parse error", e);
+    }
+  });
+
+  return () => socket.close();
+}, []);
+
 
   // ==============================
   // TREAM COMPARTIDO (CLAVE)

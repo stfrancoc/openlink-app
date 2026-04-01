@@ -50,6 +50,7 @@ export default function MenuScreen({
       <View style={styles.buttonGroup}>
         <Button title="Pantalla flotante" onPress={() => onSelectMode('flat')} />
         <Button title="Modo VR" onPress={() => onSelectMode('vr')} />
+        <Button title="Modo Control" onPress={() => onSelectMode('controller')} />
       </View>
 
       <Text style={styles.status}>
